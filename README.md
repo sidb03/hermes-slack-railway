@@ -1,5 +1,7 @@
 # Hermes Agent — Slack on Railway
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/from?repoUrl=https%3A%2F%2Fgithub.com%2Fsidb03%2Fhermes-railway-template-slack&referralCode=uTN7AS)
+
 Deploy [Hermes Agent](https://github.com/NousResearch/hermes-agent) to Railway as a Slack bot with persistent state.
 
 This is a Slack-focused fork of [hermes-railway-template](https://github.com/lovexbytes/hermes-railway-template). Setup and configuration are done through Railway Variables — the container bootstraps Hermes automatically on first run.
