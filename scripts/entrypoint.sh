@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Diagnostics — check container thread/PID limits
-echo "[bootstrap] ulimit -u (max user processes): $(ulimit -u 2>&1)"
-echo "[bootstrap] ulimit -a:" && ulimit -a 2>&1
-echo "[bootstrap] PID limit (cgroup): $(cat /sys/fs/cgroup/pids.max 2>/dev/null || cat /sys/fs/cgroup/pids/pids.max 2>/dev/null || echo 'not found')"
-echo "[bootstrap] Current PIDs: $(ls /proc/*/status 2>/dev/null | wc -l)"
-ulimit -u unlimited 2>/dev/null || ulimit -u 4096 2>/dev/null || true
-
 export HERMES_HOME="${HERMES_HOME:-/data/.hermes}"
 export HOME="${HOME:-/data}"
 export MESSAGING_CWD="${MESSAGING_CWD:-/data/workspace}"
+
+# Limit Python thread spawning to stay under Railway's pids.max=1000
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+export PYTHONDONTWRITEBYTECODE=1
 
 INIT_MARKER="${HERMES_HOME}/.initialized"
 ENV_FILE="${HERMES_HOME}/.env"
@@ -35,38 +35,19 @@ validate_slack() {
     echo "[bootstrap] ERROR: SLACK_APP_TOKEN is required." >&2
     exit 1
   fi
-
-  if [[ "${SLACK_BOT_TOKEN}" != xoxb-* ]]; then
-    echo "[bootstrap] WARNING: SLACK_BOT_TOKEN should start with 'xoxb-'. Double-check your token." >&2
-  fi
-
-  if [[ "${SLACK_APP_TOKEN}" != xapp-* ]]; then
-    echo "[bootstrap] WARNING: SLACK_APP_TOKEN should start with 'xapp-'. Double-check your token." >&2
-  fi
 }
 
 has_valid_provider_config() {
-  if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
-    return 0
-  fi
-
-  if [[ -n "${OPENAI_BASE_URL:-}" && -n "${OPENAI_API_KEY:-}" ]]; then
-    return 0
-  fi
-
-  if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
-    return 0
-  fi
-
+  [[ -n "${OPENROUTER_API_KEY:-}" ]] && return 0
+  [[ -n "${OPENAI_BASE_URL:-}" && -n "${OPENAI_API_KEY:-}" ]] && return 0
+  [[ -n "${ANTHROPIC_API_KEY:-}" ]] && return 0
   return 1
 }
 
 append_if_set() {
   local key="$1"
   local val="${!key:-}"
-  if [[ -n "$val" ]]; then
-    printf '%s=%s\n' "$key" "$val" >> "$ENV_FILE"
-  fi
+  [[ -n "$val" ]] && printf '%s=%s\n' "$key" "$val" >> "$ENV_FILE"
 }
 
 if ! has_valid_provider_config; then
@@ -84,13 +65,11 @@ echo "[bootstrap] Writing runtime env to ${ENV_FILE}"
 } > "$ENV_FILE"
 
 for key in \
-  OPENROUTER_API_KEY OPENAI_API_KEY OPENAI_BASE_URL ANTHROPIC_API_KEY LLM_MODEL HERMES_INFERENCE_PROVIDER HERMES_PORTAL_BASE_URL NOUS_INFERENCE_BASE_URL HERMES_NOUS_MIN_KEY_TTL_SECONDS HERMES_DUMP_REQUESTS \
+  OPENROUTER_API_KEY OPENAI_API_KEY OPENAI_BASE_URL ANTHROPIC_API_KEY LLM_MODEL HERMES_INFERENCE_PROVIDER \
   SLACK_BOT_TOKEN SLACK_APP_TOKEN SLACK_ALLOWED_USERS SLACK_ALLOW_ALL_USERS SLACK_HOME_CHANNEL SLACK_HOME_CHANNEL_NAME \
   GATEWAY_ALLOW_ALL_USERS \
-  FIRECRAWL_API_KEY NOUS_API_KEY BROWSERBASE_API_KEY BROWSERBASE_PROJECT_ID BROWSERBASE_PROXIES BROWSERBASE_ADVANCED_STEALTH BROWSER_SESSION_TIMEOUT BROWSER_INACTIVITY_TIMEOUT FAL_KEY ELEVENLABS_API_KEY VOICE_TOOLS_OPENAI_KEY \
-  TINKER_API_KEY WANDB_API_KEY RL_API_URL GITHUB_TOKEN \
-  TERMINAL_ENV TERMINAL_BACKEND TERMINAL_DOCKER_IMAGE TERMINAL_SINGULARITY_IMAGE TERMINAL_MODAL_IMAGE TERMINAL_CWD TERMINAL_TIMEOUT TERMINAL_LIFETIME_SECONDS TERMINAL_CONTAINER_CPU TERMINAL_CONTAINER_MEMORY TERMINAL_CONTAINER_DISK TERMINAL_CONTAINER_PERSISTENT TERMINAL_SANDBOX_DIR TERMINAL_SSH_HOST TERMINAL_SSH_USER TERMINAL_SSH_PORT TERMINAL_SSH_KEY SUDO_PASSWORD \
-  WEB_TOOLS_DEBUG VISION_TOOLS_DEBUG MOA_TOOLS_DEBUG IMAGE_TOOLS_DEBUG CONTEXT_COMPRESSION_ENABLED CONTEXT_COMPRESSION_THRESHOLD CONTEXT_COMPRESSION_MODEL HERMES_MAX_ITERATIONS HERMES_TOOL_PROGRESS HERMES_TOOL_PROGRESS_MODE
+  TERMINAL_ENV TERMINAL_BACKEND TERMINAL_CWD TERMINAL_TIMEOUT \
+  CONTEXT_COMPRESSION_ENABLED CONTEXT_COMPRESSION_THRESHOLD CONTEXT_COMPRESSION_MODEL HERMES_MAX_ITERATIONS
 do
   append_if_set "$key"
 done
@@ -121,11 +100,11 @@ if [[ -z "${SLACK_ALLOWED_USERS:-}" ]]; then
   fi
 fi
 
-echo "[bootstrap] Starting Hermes gateway (Slack) with debug logging..."
-export HERMES_LOG_LEVEL=DEBUG
+echo "[bootstrap] PID limit (cgroup): $(cat /sys/fs/cgroup/pids.max 2>/dev/null || echo 'unknown')"
+echo "[bootstrap] Starting Hermes gateway (Slack)..."
 
-# Hermes logs to file, not stdout — tail the log so it appears in Railway
+# Tail gateway log to stdout so it appears in Railway
 touch "${HERMES_HOME}/logs/gateway.log"
 tail -F "${HERMES_HOME}/logs/gateway.log" &
 
-hermes gateway
+exec hermes gateway

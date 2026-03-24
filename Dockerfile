@@ -23,7 +23,6 @@ FROM python:3.11-slim
 RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     ca-certificates \
-    tini \
   && rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/opt/venv/bin:${PATH}" \
@@ -38,5 +37,4 @@ WORKDIR /app
 COPY scripts/entrypoint.sh /app/scripts/entrypoint.sh
 RUN chmod +x /app/scripts/entrypoint.sh
 
-ENTRYPOINT ["tini", "--"]
 CMD ["/app/scripts/entrypoint.sh"]
