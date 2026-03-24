@@ -123,4 +123,9 @@ fi
 
 echo "[bootstrap] Starting Hermes gateway (Slack) with debug logging..."
 export HERMES_LOG_LEVEL=DEBUG
-exec hermes gateway
+
+# Hermes logs to file, not stdout — tail the log so it appears in Railway
+touch "${HERMES_HOME}/logs/gateway.log"
+tail -F "${HERMES_HOME}/logs/gateway.log" &
+
+hermes gateway
