@@ -18,28 +18,23 @@ is_true() {
   esac
 }
 
-validate_platforms() {
-  local count=0
-
-  if [[ -n "${TELEGRAM_BOT_TOKEN:-}" ]]; then
-    count=$((count + 1))
-  fi
-
-  if [[ -n "${DISCORD_BOT_TOKEN:-}" ]]; then
-    count=$((count + 1))
-  fi
-
-  if [[ -n "${SLACK_BOT_TOKEN:-}" || -n "${SLACK_APP_TOKEN:-}" ]]; then
-    if [[ -z "${SLACK_BOT_TOKEN:-}" || -z "${SLACK_APP_TOKEN:-}" ]]; then
-      echo "[bootstrap] ERROR: Slack requires both SLACK_BOT_TOKEN and SLACK_APP_TOKEN." >&2
-      exit 1
-    fi
-    count=$((count + 1))
-  fi
-
-  if [[ "$count" -lt 1 ]]; then
-    echo "[bootstrap] ERROR: Configure at least one platform: Telegram, Discord, or Slack." >&2
+validate_slack() {
+  if [[ -z "${SLACK_BOT_TOKEN:-}" ]]; then
+    echo "[bootstrap] ERROR: SLACK_BOT_TOKEN is required." >&2
     exit 1
+  fi
+
+  if [[ -z "${SLACK_APP_TOKEN:-}" ]]; then
+    echo "[bootstrap] ERROR: SLACK_APP_TOKEN is required." >&2
+    exit 1
+  fi
+
+  if [[ "${SLACK_BOT_TOKEN}" != xoxb-* ]]; then
+    echo "[bootstrap] WARNING: SLACK_BOT_TOKEN should start with 'xoxb-'. Double-check your token." >&2
+  fi
+
+  if [[ "${SLACK_APP_TOKEN}" != xapp-* ]]; then
+    echo "[bootstrap] WARNING: SLACK_APP_TOKEN should start with 'xapp-'. Double-check your token." >&2
   fi
 }
 
@@ -72,7 +67,7 @@ if ! has_valid_provider_config; then
   exit 1
 fi
 
-validate_platforms
+validate_slack
 
 echo "[bootstrap] Writing runtime env to ${ENV_FILE}"
 {
@@ -83,9 +78,7 @@ echo "[bootstrap] Writing runtime env to ${ENV_FILE}"
 
 for key in \
   OPENROUTER_API_KEY OPENAI_API_KEY OPENAI_BASE_URL ANTHROPIC_API_KEY LLM_MODEL HERMES_INFERENCE_PROVIDER HERMES_PORTAL_BASE_URL NOUS_INFERENCE_BASE_URL HERMES_NOUS_MIN_KEY_TTL_SECONDS HERMES_DUMP_REQUESTS \
-  TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USERS TELEGRAM_ALLOW_ALL_USERS TELEGRAM_HOME_CHANNEL TELEGRAM_HOME_CHANNEL_NAME \
-  DISCORD_BOT_TOKEN DISCORD_ALLOWED_USERS DISCORD_ALLOW_ALL_USERS DISCORD_HOME_CHANNEL DISCORD_HOME_CHANNEL_NAME DISCORD_REQUIRE_MENTION DISCORD_FREE_RESPONSE_CHANNELS \
-  SLACK_BOT_TOKEN SLACK_APP_TOKEN SLACK_ALLOWED_USERS SLACK_ALLOW_ALL_USERS SLACK_HOME_CHANNEL SLACK_HOME_CHANNEL_NAME WHATSAPP_ENABLED WHATSAPP_ALLOWED_USERS \
+  SLACK_BOT_TOKEN SLACK_APP_TOKEN SLACK_ALLOWED_USERS SLACK_ALLOW_ALL_USERS SLACK_HOME_CHANNEL SLACK_HOME_CHANNEL_NAME \
   GATEWAY_ALLOW_ALL_USERS \
   FIRECRAWL_API_KEY NOUS_API_KEY BROWSERBASE_API_KEY BROWSERBASE_PROJECT_ID BROWSERBASE_PROXIES BROWSERBASE_ADVANCED_STEALTH BROWSER_SESSION_TIMEOUT BROWSER_INACTIVITY_TIMEOUT FAL_KEY ELEVENLABS_API_KEY VOICE_TOOLS_OPENAI_KEY \
   TINKER_API_KEY WANDB_API_KEY RL_API_URL GITHUB_TOKEN \
@@ -115,11 +108,11 @@ else
   echo "[bootstrap] Existing Hermes data found. Skipping one-time init."
 fi
 
-if [[ -z "${TELEGRAM_ALLOWED_USERS:-}${DISCORD_ALLOWED_USERS:-}${SLACK_ALLOWED_USERS:-}" ]]; then
-  if ! is_true "${GATEWAY_ALLOW_ALL_USERS:-}" && ! is_true "${TELEGRAM_ALLOW_ALL_USERS:-}" && ! is_true "${DISCORD_ALLOW_ALL_USERS:-}" && ! is_true "${SLACK_ALLOW_ALL_USERS:-}"; then
-    echo "[bootstrap] WARNING: No allowlists configured. Gateway defaults to deny-all; use DM pairing or set *_ALLOWED_USERS." >&2
+if [[ -z "${SLACK_ALLOWED_USERS:-}" ]]; then
+  if ! is_true "${GATEWAY_ALLOW_ALL_USERS:-}" && ! is_true "${SLACK_ALLOW_ALL_USERS:-}"; then
+    echo "[bootstrap] WARNING: SLACK_ALLOWED_USERS not set. Gateway defaults to deny-all; use DM pairing or set SLACK_ALLOWED_USERS." >&2
   fi
 fi
 
-echo "[bootstrap] Starting Hermes gateway..."
+echo "[bootstrap] Starting Hermes gateway (Slack)..."
 exec hermes gateway
