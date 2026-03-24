@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Raise thread/process limit — Railway containers default is too low for Hermes gateway
-ulimit -u 4096 2>/dev/null || true
+# Diagnostics — check container thread/PID limits
+echo "[bootstrap] ulimit -u (max user processes): $(ulimit -u 2>&1)"
+echo "[bootstrap] ulimit -a:" && ulimit -a 2>&1
+echo "[bootstrap] PID limit (cgroup): $(cat /sys/fs/cgroup/pids.max 2>/dev/null || cat /sys/fs/cgroup/pids/pids.max 2>/dev/null || echo 'not found')"
+echo "[bootstrap] Current PIDs: $(ls /proc/*/status 2>/dev/null | wc -l)"
+ulimit -u unlimited 2>/dev/null || ulimit -u 4096 2>/dev/null || true
 
 export HERMES_HOME="${HERMES_HOME:-/data/.hermes}"
 export HOME="${HOME:-/data}"
