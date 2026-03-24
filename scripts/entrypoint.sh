@@ -121,5 +121,5 @@ if [[ -z "${SLACK_ALLOWED_USERS:-}" ]]; then
   fi
 fi
 
-echo "[bootstrap] Starting Hermes gateway (Slack)..."
-exec hermes gateway
+echo "[bootstrap] Starting Hermes gateway (Slack) with verbose logging..."
+exec hermes gateway --verbose
